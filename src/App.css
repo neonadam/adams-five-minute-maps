@@ -1,0 +1,12 @@
+.app {
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+  overflow: hidden;
+  background: #e5e3df;
+}
+
+.app .ol-viewport {
+  width: 100% !important;
+  height: 100% !important;
+}

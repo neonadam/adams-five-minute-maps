@@ -8,6 +8,7 @@ function App() {
   const [vessels, setVessels] = useState([])
   const [selectedVessel, setSelectedVessel] = useState(null)
   const [zoomToVessel, setZoomToVessel] = useState(null)
+  const [spotlightVessel, setSpotlightVessel] = useState(null)
   const [loading, setLoading] = useState(true)
   
   const handleVesselClick = useCallback((vessel) => {
@@ -15,11 +16,20 @@ function App() {
   }, [])
 
   const handleVesselSearch = useCallback((vessel) => {
+    setSelectedVessel(vessel)
     setZoomToVessel(vessel)
     // Clear the zoom trigger after a delay
     setTimeout(() => {
       setZoomToVessel(null)
     }, 100)
+  }, [])
+
+  const handleSpotlight = useCallback((vessel) => {
+    setSpotlightVessel(vessel)
+    // Clear the spotlight trigger after animation
+    setTimeout(() => {
+      setSpotlightVessel(null)
+    }, 600)
   }, [])
 
   useEffect(() => {
@@ -69,10 +79,13 @@ function App() {
         vessels={vessels} 
         onVesselClick={handleVesselClick}
         zoomToVessel={zoomToVessel}
+        selectedVessel={selectedVessel}
+        spotlightVessel={spotlightVessel}
       />
       <VesselInfoPanel 
         vessel={selectedVessel} 
-        onClose={() => setSelectedVessel(null)} 
+        onClose={() => setSelectedVessel(null)}
+        onSpotlight={handleSpotlight}
       />
     </div>
   )

@@ -38,10 +38,34 @@ function createArrowSVG(color) {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 }
 
-function getVesselBroadcast(vessel) {
+// Create highlighted arrow SVG with glow effect
+function createHighlightedArrowSVG(color) {
+  const svg = `<svg width="30" height="30" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <filter id="glow-${color.replace('#', '')}">
+        <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+        <feMerge>
+          <feMergeNode in="coloredBlur"/>
+          <feMergeNode in="SourceGraphic"/>
+        </feMerge>
+      </filter>
+    </defs>
+    <circle cx="15" cy="15" r="13" fill="${color}" opacity="0.3" filter="url(#glow-${color.replace('#', '')})"/>
+    <path d="M15 4 L26 26 L15 20 L4 26 Z" 
+          fill="${color}" 
+          stroke="#fff" 
+          stroke-width="2" 
+          stroke-linejoin="round" 
+          stroke-linecap="round"
+          filter="url(#glow-${color.replace('#', '')})"/>
+  </svg>`
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+}
+
+function getVesselBroadcast(vessel, isSelected = false) {
   const color = vesselTypeColors[vessel.type] || '#7f8c8d'
   const heading = vessel.heading || 0
-  const cacheKey = `${color}_${heading}`
+  const cacheKey = `${color}_${heading}_${isSelected}`
   
   if (!vesselStyleCache[cacheKey]) {
     // Convert heading from degrees (0-360, where 0 is North) to radians
@@ -49,21 +73,22 @@ function getVesselBroadcast(vessel) {
     // So we need: (90 - heading) * PI / 180
     const rotation = ((90 - heading) * Math.PI) / 180
     
-    const arrowSrc = createArrowSVG(color)
+    const arrowSrc = isSelected ? createHighlightedArrowSVG(color) : createArrowSVG(color)
+    const scale = isSelected ? 1.3 : 0.9
     
     vesselStyleCache[cacheKey] = new Style({
       image: new Icon({
         src: arrowSrc,
         rotation: rotation,
         anchor: [0.5, 0.5], // Anchor at the center point of the arrow
-        scale: 0.9,
+        scale: scale,
       }),
     })
   }
   return vesselStyleCache[cacheKey]
 }
 
-function Map({ vessels, onVesselClick, zoomToVessel }) {
+function Map({ vessels, onVesselClick, zoomToVessel, selectedVessel, spotlightVessel }) {
   const mapRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const vectorLayerRef = useRef(null)
@@ -110,6 +135,51 @@ function Map({ vessels, onVesselClick, zoomToVessel }) {
       }, 600)
     }
   }, [zoomToVessel])
+
+  // Update styles when selectedVessel changes
+  useEffect(() => {
+    if (!selectedVessel || !allFeaturesRef.current.length) {
+      // Clear all highlights if no vessel is selected
+      allFeaturesRef.current.forEach(feature => {
+        const vessel = feature.get('vessel')
+        if (vessel) {
+          feature.setStyle(getVesselBroadcast(vessel, false))
+        }
+      })
+      return
+    }
+
+    // Update styles for all features
+    allFeaturesRef.current.forEach(feature => {
+      const vessel = feature.get('vessel')
+      if (vessel) {
+        const isSelected = vessel.id === selectedVessel.id
+        feature.setStyle(getVesselBroadcast(vessel, isSelected))
+      }
+    })
+  }, [selectedVessel])
+
+  // Handle spotlight vessel (zoom to selected vessel)
+  useEffect(() => {
+    if (!spotlightVessel || !mapInstanceRef.current) return
+
+    const feature = allFeaturesRef.current.find(
+      f => f.get('vessel')?.id === spotlightVessel.id
+    )
+
+    if (feature && mapInstanceRef.current) {
+      const map = mapInstanceRef.current
+      const geometry = feature.getGeometry()
+      const coordinate = geometry.getCoordinates()
+      
+      // Zoom to the vessel location at a nice zoom level
+      map.getView().animate({
+        center: coordinate,
+        zoom: 14,
+        duration: 500,
+      })
+    }
+  }, [spotlightVessel])
 
   // Function to determine how many vessels to show based on zoom
   function getVesselCountForZoom(zoom, totalCount) {
@@ -284,7 +354,8 @@ function Map({ vessels, onVesselClick, zoomToVessel }) {
           })
 
           // Set style based on vessel (type + heading for arrow rotation)
-          feature.setStyle(getVesselBroadcast(vessel))
+          // Style will be updated when selectedVessel changes
+          feature.setStyle(getVesselBroadcast(vessel, false))
           allFeaturesRef.current.push(feature)
         }
 

@@ -1,6 +1,6 @@
 import './VesselInfoPanel.css'
 
-function VesselInfoPanel({ vessel, onClose }) {
+function VesselInfoPanel({ vessel, onClose, onSpotlight }) {
   if (!vessel) return null
 
   return (
@@ -54,6 +54,11 @@ function VesselInfoPanel({ vessel, onClose }) {
             {vessel.tonnage.toLocaleString()} tons
           </span>
         </div>
+      </div>
+      <div className="vessel-info-actions">
+        <button className="spotlight-button" onClick={() => onSpotlight(vessel)}>
+          Spotlight this vessel
+        </button>
       </div>
     </div>
   )

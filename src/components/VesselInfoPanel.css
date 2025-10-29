@@ -101,3 +101,32 @@
 .vessel-info-panel::-webkit-scrollbar-thumb:hover {
   background: #555;
 }
+
+.vessel-info-actions {
+  padding: 16px 24px;
+  border-top: 1px solid #f0f0f0;
+  margin-top: 8px;
+}
+
+.spotlight-button {
+  width: 100%;
+  padding: 12px 24px;
+  background: #3498db;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.spotlight-button:hover {
+  background: #2980b9;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+}
+
+.spotlight-button:active {
+  transform: translateY(0);
+}

@@ -88,12 +88,14 @@ function getVesselBroadcast(vessel, isSelected = false) {
   return vesselStyleCache[cacheKey]
 }
 
-function Map({ vessels, onVesselClick, zoomToVessel, selectedVessel, spotlightVessel }) {
+function Map({ vessels, ports, onVesselClick, onPortClick, zoomToVessel, selectedVessel, spotlightVessel, zoomToPort, spotlightPort }) {
   const mapRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const vectorLayerRef = useRef(null)
+  const portsLayerRef = useRef(null)
   const allFeaturesRef = useRef([])
   const onVesselClickRef = useRef(onVesselClick)
+  const onPortClickRef = useRef(onPortClick)
   const currentZoomRef = useRef(null)
   const zoomToVesselRef = useRef(zoomToVessel)
 
@@ -101,6 +103,10 @@ function Map({ vessels, onVesselClick, zoomToVessel, selectedVessel, spotlightVe
   useEffect(() => {
     onVesselClickRef.current = onVesselClick
   }, [onVesselClick])
+
+  useEffect(() => {
+    onPortClickRef.current = onPortClick
+  }, [onPortClick])
 
   useEffect(() => {
     zoomToVesselRef.current = zoomToVessel
@@ -180,6 +186,36 @@ function Map({ vessels, onVesselClick, zoomToVessel, selectedVessel, spotlightVe
       })
     }
   }, [spotlightVessel])
+
+  // Handle zoom to port (from search)
+  useEffect(() => {
+    if (!zoomToPort || !mapInstanceRef.current) return
+
+    const map = mapInstanceRef.current
+    const coordinate = fromLonLat([zoomToPort.longitude, zoomToPort.latitude])
+    
+    // Zoom to the port location at a nice zoom level to see nearby vessels
+    map.getView().animate({
+      center: coordinate,
+      zoom: 11,
+      duration: 500,
+    })
+  }, [zoomToPort])
+
+  // Handle spotlight port (zoom to selected port)
+  useEffect(() => {
+    if (!spotlightPort || !mapInstanceRef.current) return
+
+    const map = mapInstanceRef.current
+    const coordinate = fromLonLat([spotlightPort.longitude, spotlightPort.latitude])
+    
+    // Zoom to the port location at a nice zoom level to see nearby vessels
+    map.getView().animate({
+      center: coordinate,
+      zoom: 12,
+      duration: 500,
+    })
+  }, [spotlightPort])
 
   // Function to determine how many vessels to show based on zoom
   function getVesselCountForZoom(zoom, totalCount) {
@@ -263,14 +299,21 @@ function Map({ vessels, onVesselClick, zoomToVessel, selectedVessel, spotlightVe
       map.updateSize()
     }, 300)
 
-    // Add click handler - only for individual vessels
+    // Add click handler for vessels and ports
     const clickHandler = (event) => {
       map.forEachFeatureAtPixel(event.pixel, (feature) => {
         const vessel = feature.get('vessel')
-        if (vessel && onVesselClickRef.current) {
+        const port = feature.get('port')
+        
+        // Prioritize port clicks
+        if (port && onPortClickRef.current) {
+          onPortClickRef.current(port)
+          return true
+        } else if (vessel && onVesselClickRef.current) {
           onVesselClickRef.current(vessel)
+          return true
         }
-        return true
+        return false
       })
     }
 
@@ -403,6 +446,62 @@ function Map({ vessels, onVesselClick, zoomToVessel, selectedVessel, spotlightVe
       }
     }
   }, [vessels])
+
+  // Create port markers
+  useEffect(() => {
+    if (!mapInstanceRef.current || !ports || ports.length === 0) return
+
+    const map = mapInstanceRef.current
+
+    // Remove existing ports layer if it exists
+    if (portsLayerRef.current) {
+      map.removeLayer(portsLayerRef.current)
+      portsLayerRef.current = null
+    }
+
+    const portSource = new VectorSource()
+    const portStyleCache = {}
+
+    ports.forEach(port => {
+      // Create port icon SVG - smaller green circle with white outline
+      const portSVG = `<svg width="20" height="20" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="10" cy="10" r="8" fill="#2ecc71" stroke="#fff" stroke-width="2"/>
+      </svg>`
+      const portSrc = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(portSVG)}`
+
+      if (!portStyleCache[portSrc]) {
+        portStyleCache[portSrc] = new Style({
+          image: new Icon({
+            src: portSrc,
+            anchor: [0.5, 0.5],
+            scale: 0.8,
+          }),
+        })
+      }
+
+      const feature = new Feature({
+        geometry: new Point(fromLonLat([port.longitude, port.latitude])),
+        port: port,
+      })
+
+      feature.setStyle(portStyleCache[portSrc])
+      portSource.addFeature(feature)
+    })
+
+    const portLayer = new VectorLayer({
+      source: portSource,
+    })
+
+    map.addLayer(portLayer)
+    portsLayerRef.current = portLayer
+
+    return () => {
+      if (portsLayerRef.current && map) {
+        map.removeLayer(portsLayerRef.current)
+        portsLayerRef.current = null
+      }
+    }
+  }, [ports])
 
   return (
     <div 

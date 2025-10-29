@@ -1,11 +1,18 @@
 import json
 import random
 
-# Generate vessel data with coordinates in seas/rivers around the world
+# Generate vessel data with coordinates in seas around the world
 vessels = []
 
 # Vessel types
 vessel_types = ['Cargo Ship', 'Tanker', 'Container Ship', 'Cruise Ship', 'Fishing Vessel', 'Yacht', 'Ferry', 'Bulk Carrier']
+
+# Load ports data to place vessels near ports
+try:
+    with open('public/ports-data.json', 'r') as f:
+        ports = json.load(f)
+except:
+    ports = []
 
 # Major sea areas and their approximate bounds (lat, lon ranges)
 sea_areas = [
@@ -37,25 +44,30 @@ sea_areas = [
     {'name': 'Bering Sea', 'lat': (52, 66), 'lon': (162, -168)},
     # Black Sea
     {'name': 'Black Sea', 'lat': (41, 47), 'lon': (27, 42)},
-    # Amazon River (approximate)
-    {'name': 'Amazon River', 'lat': (-5, 3), 'lon': (-70, -50)},
-    # Mississippi River Delta
+    # Mississippi River Delta (delta area, more open water)
     {'name': 'Mississippi Delta', 'lat': (29, 30.5), 'lon': (-91, -89)},
-    # Yangtze River (approximate)
-    {'name': 'Yangtze River', 'lat': (30, 32), 'lon': (118, 121)},
-    # Thames Estuary
+    # Thames Estuary (estuary area, more open water)
     {'name': 'Thames Estuary', 'lat': (51.3, 51.7), 'lon': (0.5, 1.5)},
-    # Rhine River
-    {'name': 'Rhine River', 'lat': (51, 52.6), 'lon': (4, 6)},
-    # Suez Canal
+    # Suez Canal (major shipping canal)
     {'name': 'Suez Canal', 'lat': (29.8, 31.3), 'lon': (32.3, 32.6)},
 ]
 
 # Generate 8000 vessels
 for i in range(8000):
-    area = random.choice(sea_areas)
-    lat = random.uniform(area['lat'][0], area['lat'][1])
-    lon = random.uniform(area['lon'][0], area['lon'][1])
+    # 20% of vessels near ports, 80% in general sea areas
+    if ports and random.random() < 0.2:
+        # Place vessel near a random port (within ~50km radius)
+        port = random.choice(ports)
+        # Add random offset (approximately 0.1-0.5 degrees, roughly 10-50km)
+        lat_offset = random.uniform(-0.5, 0.5)
+        lon_offset = random.uniform(-0.5, 0.5)
+        lat = port['latitude'] + lat_offset
+        lon = port['longitude'] + lon_offset
+    else:
+        # Place vessel in general sea area
+        area = random.choice(sea_areas)
+        lat = random.uniform(area['lat'][0], area['lat'][1])
+        lon = random.uniform(area['lon'][0], area['lon'][1])
     
     vessel = {
         'id': f'VESSEL-{i+1:05d}',
@@ -77,4 +89,3 @@ with open('public/vessel-data.json', 'w') as f:
     json.dump(vessels, f, indent=2)
 
 print(f'Generated {len(vessels)} vessels')
-

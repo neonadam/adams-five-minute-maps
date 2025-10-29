@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import './SearchBox.css'
 
-function SearchBox({ vessels, onVesselSelect }) {
+function SearchBox({ vessels, ports, onVesselSelect, onPortSelect }) {
   const [searchTerm, setSearchTerm] = useState('')
   const [results, setResults] = useState([])
   const [selectedIndex, setSelectedIndex] = useState(-1)
@@ -17,27 +17,48 @@ function SearchBox({ vessels, onVesselSelect }) {
     }
 
     const query = searchTerm.toLowerCase()
-    const matched = vessels
-      .filter(vessel => 
-        vessel.name.toLowerCase().includes(query) ||
-        vessel.id.toLowerCase().includes(query)
-      )
-      .slice(0, 10) // Limit to 10 results
+    const matched = []
     
-    setResults(matched)
+    // Search vessels
+    if (vessels) {
+      vessels
+        .filter(vessel => 
+          vessel.name.toLowerCase().includes(query) ||
+          vessel.id.toLowerCase().includes(query)
+        )
+        .slice(0, 5)
+        .forEach(v => matched.push({ ...v, type: 'vessel' }))
+    }
+    
+    // Search ports
+    if (ports) {
+      ports
+        .filter(port => 
+          port.name.toLowerCase().includes(query) ||
+          port.country.toLowerCase().includes(query)
+        )
+        .slice(0, 5)
+        .forEach(p => matched.push({ ...p, type: 'port' }))
+    }
+    
+    setResults(matched.slice(0, 10)) // Limit to 10 total results
     setIsOpen(matched.length > 0)
     setSelectedIndex(-1)
-  }, [searchTerm, vessels])
+  }, [searchTerm, vessels, ports])
 
   const handleInputChange = (e) => {
     setSearchTerm(e.target.value)
   }
 
-  const handleSelect = (vessel) => {
+  const handleSelect = (item) => {
     setSearchTerm('')
     setResults([])
     setIsOpen(false)
-    onVesselSelect(vessel)
+    if (item.type === 'vessel') {
+      onVesselSelect(item)
+    } else if (item.type === 'port') {
+      onPortSelect(item)
+    }
   }
 
   const handleKeyDown = (e) => {
@@ -85,7 +106,7 @@ function SearchBox({ vessels, onVesselSelect }) {
         <input
           type="text"
           className="search-input"
-          placeholder="Search vessel by name or ID..."
+          placeholder="Search vessels or ports..."
           value={searchTerm}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
@@ -110,18 +131,23 @@ function SearchBox({ vessels, onVesselSelect }) {
       </div>
       {isOpen && results.length > 0 && (
         <div className="search-results" ref={resultsRef}>
-          {results.map((vessel, index) => (
+          {results.map((item, index) => (
             <div
-              key={vessel.id}
+              key={item.id}
               className={`search-result-item ${
                 index === selectedIndex ? 'selected' : ''
               }`}
-              onClick={() => handleSelect(vessel)}
+              onClick={() => handleSelect(item)}
               onMouseEnter={() => setSelectedIndex(index)}
             >
-              <div className="result-name">{vessel.name}</div>
+              <div className="result-name">
+                {item.name}
+                {item.type === 'port' && <span className="result-badge">Port</span>}
+              </div>
               <div className="result-details">
-                {vessel.id} • {vessel.type}
+                {item.type === 'vessel' 
+                  ? `${item.id} • ${item.type}` 
+                  : `${item.country} • Port`}
               </div>
             </div>
           ))}

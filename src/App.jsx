@@ -14,6 +14,7 @@ function App() {
   const [zoomToPort, setZoomToPort] = useState(null)
   const [spotlightVessel, setSpotlightVessel] = useState(null)
   const [spotlightPort, setSpotlightPort] = useState(null)
+  const [pirateTakeoverVessel, setPirateTakeoverVessel] = useState(null)
   const [loading, setLoading] = useState(true)
   
   const handleVesselClick = useCallback((vessel) => {
@@ -49,6 +50,29 @@ function App() {
     setTimeout(() => {
       setSpotlightPort(null)
     }, 600)
+  }, [])
+
+  const handlePirateTakeover = useCallback((vessel) => {
+    setPirateTakeoverVessel(vessel)
+  }, [])
+
+  const handleStopTakeover = useCallback(() => {
+    setPirateTakeoverVessel(null)
+  }, [])
+
+  const handleVesselPositionUpdate = useCallback((updatedVessel) => {
+    // Update the vessel in the vessels array
+    setVessels(prevVessels => 
+      prevVessels.map(v => v.id === updatedVessel.id ? updatedVessel : v)
+    )
+    // Update selected vessel if it's the same one
+    setSelectedVessel(prevSelected => 
+      prevSelected && prevSelected.id === updatedVessel.id ? updatedVessel : prevSelected
+    )
+    // Update pirate takeover vessel
+    setPirateTakeoverVessel(prevPirate => 
+      prevPirate && prevPirate.id === updatedVessel.id ? updatedVessel : prevPirate
+    )
   }, [])
 
   useEffect(() => {
@@ -121,11 +145,19 @@ function App() {
         selectedVessel={selectedVessel}
         spotlightVessel={spotlightVessel}
         spotlightPort={spotlightPort}
+        pirateTakeoverVessel={pirateTakeoverVessel}
+        onVesselPositionUpdate={handleVesselPositionUpdate}
       />
       <VesselInfoPanel 
         vessel={selectedVessel} 
-        onClose={() => setSelectedVessel(null)}
+        onClose={() => {
+          setSelectedVessel(null)
+          setPirateTakeoverVessel(null)
+        }}
         onSpotlight={handleSpotlight}
+        isPirateTakeover={pirateTakeoverVessel && selectedVessel && pirateTakeoverVessel.id === selectedVessel.id}
+        onPirateTakeover={handlePirateTakeover}
+        onStopTakeover={handleStopTakeover}
       />
       <PortInfoPanel 
         port={selectedPort} 

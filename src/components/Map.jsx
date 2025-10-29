@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { toLonLat } from 'ol/proj'
 import { Map as OlMap, View } from 'ol'
 import TileLayer from 'ol/layer/Tile'
 import OSM from 'ol/source/OSM'
@@ -62,10 +63,45 @@ function createHighlightedArrowSVG(color) {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 }
 
-function getVesselBroadcast(vessel, isSelected = false) {
+// Create pirate hat SVG - proper pirate hat design that rotates with vessel
+function createPirateHatSVG(color) {
+  const svg = `<svg width="50" height="50" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <filter id="hatGlow-${color.replace('#', '')}">
+        <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+        <feMerge>
+          <feMergeNode in="coloredBlur"/>
+          <feMergeNode in="SourceGraphic"/>
+        </feMerge>
+      </filter>
+    </defs>
+    <!-- Vessel arrow (centered at 25,25 for 50x50 SVG) -->
+    <path d="M25 20 L38 42 L25 32 L12 42 Z" 
+          fill="${color}" 
+          stroke="#fff" 
+          stroke-width="3" 
+          stroke-linejoin="round" 
+          stroke-linecap="round"/>
+    <!-- Classic pirate hat with wide brim and tall crown -->
+    <!-- Wide curved brim -->
+    <ellipse cx="24" cy="6" rx="12" ry="4" fill="#8B4513" stroke="#654321" stroke-width="2"/>
+    <!-- Tall crown -->
+    <path d="M12 6 Q24 0 36 6 L33 16 Q24 13 15 16 Z" fill="#8B4513" stroke="#654321" stroke-width="2"/>
+    <!-- Gold band -->
+    <path d="M15 10 Q24 11 33 10" stroke="#FFD700" stroke-width="2.5" fill="none"/>
+    <!-- Skull decoration -->
+    <circle cx="24" cy="9" r="3" fill="#fff" stroke="#333" stroke-width="0.5"/>
+    <circle cx="22.5" cy="8.5" r="0.8" fill="#333"/>
+    <circle cx="25.5" cy="8.5" r="0.8" fill="#333"/>
+    <path d="M22 10 Q24 10.5 26 10" stroke="#333" stroke-width="1" fill="none"/>
+  </svg>`
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+}
+
+function getVesselBroadcast(vessel, isSelected = false, isPirateTakeover = false) {
   const color = vesselTypeColors[vessel.type] || '#7f8c8d'
   const heading = vessel.heading || 0
-  const cacheKey = `${color}_${heading}_${isSelected}`
+  const cacheKey = `${color}_${heading}_${isSelected}_${isPirateTakeover}`
   
   if (!vesselStyleCache[cacheKey]) {
     // Convert heading from degrees (0-360, where 0 is North) to radians
@@ -73,8 +109,18 @@ function getVesselBroadcast(vessel, isSelected = false) {
     // So we need: (90 - heading) * PI / 180
     const rotation = ((90 - heading) * Math.PI) / 180
     
-    const arrowSrc = isSelected ? createHighlightedArrowSVG(color) : createArrowSVG(color)
-    const scale = isSelected ? 1.3 : 0.9
+    let arrowSrc
+    let scale
+    if (isPirateTakeover) {
+      arrowSrc = createPirateHatSVG(color)
+      scale = 1.0
+    } else if (isSelected) {
+      arrowSrc = createHighlightedArrowSVG(color)
+      scale = 1.3
+    } else {
+      arrowSrc = createArrowSVG(color)
+      scale = 0.9
+    }
     
     vesselStyleCache[cacheKey] = new Style({
       image: new Icon({
@@ -88,7 +134,7 @@ function getVesselBroadcast(vessel, isSelected = false) {
   return vesselStyleCache[cacheKey]
 }
 
-function Map({ vessels, ports, onVesselClick, onPortClick, zoomToVessel, selectedVessel, spotlightVessel, zoomToPort, spotlightPort }) {
+function Map({ vessels, ports, onVesselClick, onPortClick, zoomToVessel, selectedVessel, spotlightVessel, zoomToPort, spotlightPort, pirateTakeoverVessel, onVesselPositionUpdate }) {
   const mapRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const vectorLayerRef = useRef(null)
@@ -96,8 +142,10 @@ function Map({ vessels, ports, onVesselClick, onPortClick, zoomToVessel, selecte
   const allFeaturesRef = useRef([])
   const onVesselClickRef = useRef(onVesselClick)
   const onPortClickRef = useRef(onPortClick)
+  const onVesselPositionUpdateRef = useRef(onVesselPositionUpdate)
   const currentZoomRef = useRef(null)
   const zoomToVesselRef = useRef(zoomToVessel)
+  const pirateTakeoverVesselRef = useRef(pirateTakeoverVessel)
 
   // Keep the refs updated
   useEffect(() => {
@@ -109,8 +157,72 @@ function Map({ vessels, ports, onVesselClick, onPortClick, zoomToVessel, selecte
   }, [onPortClick])
 
   useEffect(() => {
+    onVesselPositionUpdateRef.current = onVesselPositionUpdate
+  }, [onVesselPositionUpdate])
+
+  useEffect(() => {
     zoomToVesselRef.current = zoomToVessel
   }, [zoomToVessel])
+
+  useEffect(() => {
+    pirateTakeoverVesselRef.current = pirateTakeoverVessel
+  }, [pirateTakeoverVessel])
+
+  // Handle keyboard controls for pirate takeover
+  useEffect(() => {
+    if (!pirateTakeoverVessel) return
+
+    const handleKeyDown = (event) => {
+      const key = event.key.toLowerCase()
+      if (!['w', 'a', 's', 'd'].includes(key)) return
+
+      event.preventDefault()
+
+      const feature = allFeaturesRef.current.find(
+        f => f.get('vessel')?.id === pirateTakeoverVessel.id
+      )
+
+      if (!feature || !mapInstanceRef.current) return
+
+      const geometry = feature.getGeometry()
+      const currentCoord = geometry.getCoordinates()
+      const [lon, lat] = toLonLat(currentCoord)
+
+      // Move distance in degrees (approximately 0.002 degrees ≈ 200m at equator)
+      const moveDistance = 0.002
+
+      let newLon = lon
+      let newLat = lat
+
+      if (key === 'w') newLat += moveDistance // North
+      if (key === 's') newLat -= moveDistance // South
+      if (key === 'a') newLon -= moveDistance // West
+      if (key === 'd') newLon += moveDistance // East
+
+      // Update feature position
+      const newCoord = fromLonLat([newLon, newLat])
+      geometry.setCoordinates(newCoord)
+      feature.changed() // Trigger feature change to ensure map updates
+
+      // Update vessel data and notify parent
+      if (onVesselPositionUpdateRef.current) {
+        const updatedVessel = {
+          ...pirateTakeoverVessel,
+          longitude: newLon,
+          latitude: newLat,
+        }
+        // Update the feature's stored vessel data
+        feature.set('vessel', updatedVessel)
+        
+        onVesselPositionUpdateRef.current(updatedVessel)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [pirateTakeoverVessel])
 
   // Handle zoom to vessel
   useEffect(() => {
@@ -142,28 +254,20 @@ function Map({ vessels, ports, onVesselClick, onPortClick, zoomToVessel, selecte
     }
   }, [zoomToVessel])
 
-  // Update styles when selectedVessel changes
+  // Update styles when selectedVessel or pirateTakeoverVessel changes
   useEffect(() => {
-    if (!selectedVessel || !allFeaturesRef.current.length) {
-      // Clear all highlights if no vessel is selected
-      allFeaturesRef.current.forEach(feature => {
-        const vessel = feature.get('vessel')
-        if (vessel) {
-          feature.setStyle(getVesselBroadcast(vessel, false))
-        }
-      })
-      return
-    }
+    if (!allFeaturesRef.current.length) return
 
     // Update styles for all features
     allFeaturesRef.current.forEach(feature => {
       const vessel = feature.get('vessel')
       if (vessel) {
-        const isSelected = vessel.id === selectedVessel.id
-        feature.setStyle(getVesselBroadcast(vessel, isSelected))
+        const isSelected = selectedVessel && vessel.id === selectedVessel.id
+        const isPirateTakeover = pirateTakeoverVessel && vessel.id === pirateTakeoverVessel.id
+        feature.setStyle(getVesselBroadcast(vessel, isSelected, isPirateTakeover))
       }
     })
-  }, [selectedVessel])
+  }, [selectedVessel, pirateTakeoverVessel])
 
   // Handle spotlight vessel (zoom to selected vessel)
   useEffect(() => {
@@ -397,8 +501,10 @@ function Map({ vessels, ports, onVesselClick, onPortClick, zoomToVessel, selecte
           })
 
           // Set style based on vessel (type + heading for arrow rotation)
-          // Style will be updated when selectedVessel changes
-          feature.setStyle(getVesselBroadcast(vessel, false))
+          // Style will be updated when selectedVessel or pirateTakeoverVessel changes
+          feature.setStyle(getVesselBroadcast(vessel, false, false))
+          // Store vessel data in feature for later reference
+          feature.set('vessel', vessel)
           allFeaturesRef.current.push(feature)
         }
 

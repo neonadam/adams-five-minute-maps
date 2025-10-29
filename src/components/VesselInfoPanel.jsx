@@ -1,6 +1,6 @@
 import './VesselInfoPanel.css'
 
-function VesselInfoPanel({ vessel, onClose, onSpotlight }) {
+function VesselInfoPanel({ vessel, onClose, onSpotlight, isPirateTakeover, onPirateTakeover, onStopTakeover }) {
   if (!vessel) return null
 
   return (
@@ -59,6 +59,20 @@ function VesselInfoPanel({ vessel, onClose, onSpotlight }) {
         <button className="spotlight-button" onClick={() => onSpotlight(vessel)}>
           Spotlight this vessel
         </button>
+        {isPirateTakeover ? (
+          <>
+            <button className="stop-takeover-button" onClick={onStopTakeover}>
+              Stop Takeover
+            </button>
+            <div className="pirate-instructions">
+              Use W, A, S, D keys to move the vessel
+            </div>
+          </>
+        ) : (
+          <button className="pirate-takeover-button" onClick={() => onPirateTakeover(vessel)}>
+            Pirate Takeover
+          </button>
+        )}
       </div>
     </div>
   )

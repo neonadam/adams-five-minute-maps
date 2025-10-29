@@ -130,3 +130,62 @@
 .spotlight-button:active {
   transform: translateY(0);
 }
+
+.pirate-takeover-button {
+  width: 100%;
+  padding: 12px 24px;
+  background: #e74c3c;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 8px;
+}
+
+.pirate-takeover-button:hover {
+  background: #c0392b;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(231, 76, 60, 0.3);
+}
+
+.pirate-takeover-button:active {
+  transform: translateY(0);
+}
+
+.stop-takeover-button {
+  width: 100%;
+  padding: 12px 24px;
+  background: #95a5a6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 8px;
+}
+
+.stop-takeover-button:hover {
+  background: #7f8c8d;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(149, 165, 166, 0.3);
+}
+
+.stop-takeover-button:active {
+  transform: translateY(0);
+}
+
+.pirate-instructions {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #856404;
+  text-align: center;
+}
